@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bản đồ Buýt Điện Tân Quy - Củ Chi</title>
+
+  <!-- Roboto & FontAwesome 6 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root {
+      --gm-blue: #0052cc;
+      --gm-green: #008744;
+      --gm-amber: #d97706;
+      --gm-surface: #ffffff;
+      --gm-text-main: #172b4d;
+      --gm-text-sub: #5e6c84;
+      --gm-border: #dfe1e6;
+      --gm-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #e5e3df;
+    }
+
+    #app-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* 1. THANH TÌM KIẾM GOOGLE MAPS */
+    .gm-searchbox {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      width: 420px;
+      max-width: calc(100vw - 28px);
+      background: var(--gm-surface);
+      border-radius: 10px;
+      box-shadow: var(--gm-shadow);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .search-input-row {
+      display: flex;
+      align-items: center;
+      height: 48px;
+      padding: 0 14px;
+      gap: 10px;
+    }
+
+    .search-menu-btn {
+      background: transparent;
+      border: none;
+      color: var(--gm-text-sub);
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .search-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--gm-text-main);
+    }
+
+    .gps-live-badge {
+      background: #e3fcef;
+      color: #006644;
+      border: 1px solid #abf5d1;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .live-blip {
+      width: 8px;
+      height: 8px;
+      background: #36b37e;
+      border-radius: 50%;
+      animation: blip 1.6s infinite;
+    }
+
+    @keyframes blip {
+      0% { box-shadow: 0 0 0 0 rgba(54, 179, 126, 0.8); }
+      70% { box-shadow: 0 0 0 8px rgba(54, 179, 126, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(54, 179, 126, 0); }
+    }
+
+    .gm-tabs {
+      display: flex;
+      padding: 6px 12px 10px;
+      gap: 8px;
+      border-top: 1px solid #ebecf0;
+      overflow-x: auto;
+    }
+
+    .tab-chip {
+      background: #f4f5f7;
+      border: 1px solid transparent;
+      padding: 5px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gm-text-sub);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tab-chip.active {
+      background: #deebff;
+      color: var(--gm-blue);
+      border-color: #b3d4ff;
+      font-weight: 700;
+    }
+
+    /* 2. DRAWER DANH SÁCH */
+    .gm-drawer {
+      position: absolute;
+      top: 114px;
+      left: 14px;
+      width: 420px;
+      max-width: calc(100vw - 28px);
+      max-height: calc(100vh - 130px);
+      background: var(--gm-surface);
+      border-radius: 10px;
+      box-shadow: var(--gm-shadow);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .gm-drawer.collapsed {
+      transform: translateX(-450px);
+    }
+
+    .drawer-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--gm-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fafbfc;
+    }
+
+    .drawer-header h3 {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--gm-text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bus-list {
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bus-card {
+      background: #ffffff;
+      border: 1px solid #dfe1e6;
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .bus-card:hover {
+      background: #f4f5f7;
+      border-color: var(--gm-blue);
+    }
+
+    .bus-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+
+    .bus-badge {
+      font-size: 12px;
+      font-weight: 800;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .bus-plate {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: var(--gm-text-main);
+    }
+
+    .bus-desc {
+      font-size: 13px;
+      font-weight: 500;
+      color: #42526e;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .bus-footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--gm-text-sub);
+      border-top: 1px dashed #ebecf0;
+      padding-top: 8px;
+    }
+
+    .btn-hail-card {
+      background: #008744;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .drawer-toggle-btn {
+      position: absolute;
+      left: 440px;
+      top: 114px;
+      width: 26px;
+      height: 50px;
+      background: white;
+      border: 1px solid var(--gm-border);
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+      box-shadow: 2px 1px 5px rgba(0,0,0,0.15);
+      z-index: 1000;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--gm-text-sub);
+      transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .gm-drawer.collapsed + .drawer-toggle-btn {
+      left: 14px;
+      border-left: 1px solid var(--gm-border);
+      border-radius: 8px;
+    }
+
+    /* 3. NÚT CHUYỂN BẢN ĐỒ / VỆ TINH */
+    .gm-layer-switcher {
+      position: absolute;
+      top: 114px;
+      right: 14px;
+      z-index: 1000;
+      background: white;
+      border-radius: 8px;
+      padding: 3px;
+      box-shadow: var(--gm-shadow);
+      display: flex;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .layer-btn {
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gm-text-sub);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .layer-btn.active {
+      background: #deebff;
+      color: var(--gm-blue);
+    }
+
+    .gm-my-location-btn {
+      position: absolute;
+      bottom: 24px;
+      right: 14px;
+      width: 44px;
+      height: 44px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: var(--gm-shadow);
+      z-index: 1000;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      font-size: 18px;
+    }
+
+    /* 4. THANH CHỈ DẪN ĐI BỘ NỔI */
+    #walk-guide-panel {
+      position: absolute;
+      top: 75px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ffffff;
+      padding: 8px 16px;
+      border-radius: 24px;
+      box-shadow: var(--gm-shadow);
+      z-index: 1001;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1.5px solid #0052cc;
+    }
+
+    #walk-guide-panel button {
+      background: #f4f5f7;
+      border: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #5e6c84;
+    }
+
+    /* =========================================================
+       5. ICON XE BUÝT: XOAY CHUẨN XÁC THEO HƯỚNG ĐƯỜNG
+       ========================================================= */
+    .super-bus-marker {
+      overflow: visible !important;
+    }
+
+    .super-bus-container {
+      position: relative;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bus-floating-badge {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 900;
+      padding: 2px 8px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+      white-space: nowrap;
+      z-index: 10;
+      border: 2px solid #ffffff;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .bus-vehicle-rotate {
+      width: 26px;
+      height: 48px;
+      transform-origin: 50% 50%;
+      will-change: transform;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.7));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gm-user-dot {
+      width: 24px;
+      height: 24px;
+      position: relative;
+    }
+
+    .user-inner-dot {
+      width: 16px;
+      height: 16px;
+      background: #0052cc;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(0, 82, 204, 0.9);
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      z-index: 2;
+    }
+
+    .user-wave {
+      width: 32px;
+      height: 32px;
+      background: rgba(0, 82, 204, 0.4);
+      border-radius: 50%;
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      animation: gm-pulse 2s infinite ease-out;
+    }
+
+    @keyframes gm-pulse {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    /* 6. POPUP */
+    .leaflet-popup-content-wrapper {
+      border-radius: 12px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    }
+
+    .leaflet-popup-content {
+      margin: 0;
+      line-height: 1.4;
+      width: 300px;
+    }
+
+    .gm-popup-header {
+      padding: 12px 16px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .gm-popup-title {
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .gm-popup-plate {
+      font-size: 12px;
+      opacity: 0.95;
+    }
+
+    .gm-popup-body {
+      padding: 14px 16px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 13px;
+      color: #42526e;
+    }
+
+    .btn-hail-popup {
+      margin-top: 6px;
+      background: #008744;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(0, 135, 68, 0.4);
+    }
+
+    /* 7. MODAL THÔNG BÁO RA TRẠM ĐÓN XE */
+    #alert-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(9, 30, 66, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 99999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .gm-modal {
+      background: white;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 18px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+      animation: modalSlideUp 0.25s cubic-bezier(0, 0, 0.2, 1);
+    }
+
+    @keyframes modalSlideUp {
+      from { transform: translateY(30px) scale(0.95); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    .gm-modal-banner {
+      background: #ffab00;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: #172b4d;
+    }
+
+    .gm-modal-banner i { font-size: 38px; }
+    .gm-modal-banner h2 { font-size: 17px; font-weight: 900; text-transform: uppercase; }
+
+    .gm-modal-content {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .roadside-urgent-box {
+      background: #fffae6;
+      border: 2px dashed #ff8b00;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .roadside-urgent-box .roadside-title {
+      font-size: 16px;
+      font-weight: 900;
+      color: #bf2600;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .roadside-urgent-box p {
+      font-size: 13.5px;
+      color: #7a2e00;
+      line-height: 1.55;
+    }
+
+    .modal-bus-details {
+      background: #f4f5f7;
+      border: 1px solid #dfe1e6;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 13.5px;
+      line-height: 1.7;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-gm-primary {
+      flex: 2;
+      background: #008744;
+      color: white;
+      border: none;
+      padding: 13px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .btn-gm-secondary {
+      flex: 1;
+      background: #ebecf0;
+      color: #42526e;
+      border: none;
+      padding: 13px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #gm-toast {
+      position: fixed;
+      bottom: 85px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #091e42;
+      color: white;
+      padding: 11px 22px;
+      border-radius: 25px;
+      font-size: 13.5px;
+      font-weight: 600;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+      z-index: 100000;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    @media (max-width: 600px) {
+      .gm-searchbox { top: 10px; left: 10px; width: calc(100vw - 20px); }
+      .gm-drawer { top: auto; bottom: 0; left: 0; width: 100vw; max-width: 100vw; max-height: 46vh; border-radius: 16px 16px 0 0; }
+      .drawer-toggle-btn { display: none; }
+      .gm-layer-switcher { top: 110px; right: 10px; }
+      .gm-my-location-btn { bottom: 48vh; right: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app-container">
+    <div class="gm-searchbox">
+      <div class="search-input-row">
+        <button class="search-menu-btn" onclick="toggleDrawer()"><i class="fa-solid fa-bars"></i></button>
+        <input type="text" class="search-input" value="Ngã tư Tân Quy, Huyện Củ Chi" readonly />
+        <div class="gps-live-badge">
+          <span class="live-blip"></span> Trực tiếp
+        </div>
+      </div>
+      <div class="gm-tabs">
+        <button class="tab-chip active" onclick="filterRoute('ALL', this)">Tất cả xe (5)</button>
+        <button class="tab-chip" onclick="filterRoute('126', this)">Tuyến 126 (Tỉnh Lộ 8)</button>
+        <button class="tab-chip" onclick="filterRoute('122', this)">Tuyến 122 (TL15 Nam)</button>
+        <button class="tab-chip" onclick="filterRoute('70', this)">Tuyến 70 (TL15 Bắc)</button>
+      </div>
+    </div>
+
+    <!-- Thanh chỉ dẫn đi bộ nổi bật khi được gọi xe -->
+    <div id="walk-guide-panel">
+      <span><i class="fa-solid fa-person-walking" style="color:#0052cc;"></i> Đi tới: <strong id="panel-station-name">Trạm</strong> (<span id="panel-station-dist">~48 mét</span>)</span>
+      <button onclick="clearWalkingGuide()" title="Đóng chỉ dẫn"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div class="gm-drawer" id="gmDrawer">
+      <div class="drawer-header">
+        <h3><i class="fa-solid fa-bus" style="color: var(--gm-blue);"></i> Buýt Điện Đang Chạy</h3>
+        <span style="font-size: 11px; color: #008744; font-weight: 700;" id="route-status">
+          <i class="fa-solid fa-circle-dot"></i> ĐANG HOẠT ĐỘNG
+        </span>
+      </div>
+      <div class="bus-list" id="busList"></div>
+    </div>
+    <button class="drawer-toggle-btn" id="drawerToggle" onclick="toggleDrawer()">
+      <i class="fa-solid fa-chevron-left" id="drawerIcon"></i>
+    </button>
+
+    <div id="map"></div>
+
+    <div class="gm-layer-switcher">
+      <button class="layer-btn active" id="btnRoadmap" onclick="switchMapLayer('m')">
+        <i class="fa-solid fa-map"></i> Bản đồ
+      </button>
+      <button class="layer-btn" id="btnSatellite" onclick="switchMapLayer('y')">
+        <i class="fa-solid fa-satellite"></i> Vệ tinh
+      </button>
+    </div>
+
+    <button class="gm-my-location-btn" onclick="panToUser()" title="Vị trí của tôi">
+      <i class="fa-solid fa-crosshairs"></i>
+    </button>
+
+    <div id="alert-modal-backdrop">
+      <div class="gm-modal">
+        <div class="gm-modal-banner">
+          <i class="fa-solid fa-person-walking-luggage"></i>
+          <div>
+            <h2>YÊU CẦU ĐẶT XE THÀNH CÔNG!</h2>
+            <div style="font-size: 12.5px; font-weight: 600;">Hệ thống buýt điện thông minh Tân Quy - Củ Chi</div>
+          </div>
+        </div>
+
+        <div class="gm-modal-content">
+          <!-- Thông báo yêu cầu ra trạm gần nhất -->
+          <div class="roadside-urgent-box">
+            <span class="roadside-title">📢 HÃY DI CHUYỂN ĐẾN TRẠM GẦN NHẤT ĐỂ ĐÓN XE!</span>
+            <p>
+              Xe buýt điện chỉ dừng đón trả khách tại đúng trạm quy định để đảm bảo an toàn giao thông. Vui lòng di chuyển đến:
+            </p>
+            <div style="margin-top:10px; background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #ffab00; text-align:left;">
+              <div style="color:#0052cc; font-weight:800; font-size:14px;"><i class="fa-solid fa-location-dot"></i> <span id="modal-station-name">Trạm Ngã 4 Tân Quy</span></div>
+              <div style="font-size:12.5px; color:#5e6c84; margin-top:3px;">Khoảng cách: <strong id="modal-station-dist" style="color:#172b4d;">~48 mét</strong> • Thời gian: <span id="modal-station-time">khoảng 1 phút đi bộ</span></div>
+            </div>
+            <p style="font-size:12px; color:#7a2e00; margin-top:8px;">
+              <i class="fa-solid fa-route"></i> <em>Đã bật đường chỉ dẫn màu xanh nét đứt trên bản đồ dẫn thẳng từ vị trí của bạn tới trạm.</em>
+            </p>
+          </div>
+          <div class="modal-bus-details" id="modalBusDetails"></div>
+          <div class="modal-actions">
+            <button class="btn-gm-secondary" onclick="closeModal()">Đóng</button>
+            <button class="btn-gm-primary" onclick="confirmReady()"><i class="fa-solid fa-person-walking"></i> Đi theo chỉ dẫn ra trạm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="gm-toast">
+      <i class="fa-solid fa-circle-check" style="color: #36b37e;"></i>
+      <span id="toastMsg">Nội dung thông báo</span>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    /* =========================================================================
+       1. TỌA ĐỘ TRUNG TÂM NGÃ TƯ TÂN QUY
+       ========================================================================= */
+    const NGA_TU_TAN_QUY = [10.98368, 106.57645];
+    const USER_POS = [10.98350, 106.57685];
+
+    const map = L.map('map', {
+      center: NGA_TU_TAN_QUY,
+      zoom: 16,
+      zoomControl: false
+    });
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    let currentTileLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      attribution: 'Map data &copy; Google Maps'
+    }).addTo(map);
+
+    function switchMapLayer(type) {
+      map.removeLayer(currentTileLayer);
+      if (type === 'm') {
+        currentTileLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(map);
+        document.getElementById('btnRoadmap').classList.add('active');
+        document.getElementById('btnSatellite').classList.remove('active');
+      } else {
+        currentTileLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(map);
+        document.getElementById('btnSatellite').classList.add('active');
+        document.getElementById('btnRoadmap').classList.remove('active');
+      }
+    }
+
+    function panToUser() {
+      map.flyTo(USER_POS, 17, { duration: 0.8 });
+      userMarker.openPopup();
+      showToast("Đã định vị bạn tại Ngã tư Tân Quy");
+    }
+
+    /* =========================================================================
+       2. TỌA ĐỘ 3 TUYẾN XE BUÝT TẠI NGÃ TƯ TÂN QUY
+       ========================================================================= */
+    // TUYẾN 126 (Màu Xanh Dương): Chạy Tỉnh Lộ 8 (Bến xe Củ Chi ⇄ Tân Quy ⇄ Centre Mall ⇄ Bình Mỹ)
+    let PATH_TINH_LO_8 = [
+      [10.98180, 106.55000],
+      [10.98230, 106.55600],
+      [10.98280, 106.56200], // KDC Diamond City
+      [10.98315, 106.56800], // Ngã 3 Nguyễn Kim Cương
+      [10.98345, 106.57350], // Quán Bò Tơ Năm Vàng
+      [10.98358, 106.57500], // HEAD Bình Minh 3
+      [10.98368, 106.57645], // Ngã tư Tân Quy
+      [10.98385, 106.57800], // Thế Giới Di Động & FPT Shop
+      [10.98415, 106.58150], // Trường THPT Trung Phú
+      [10.98475, 106.58650], // Satra Centre Mall Củ Chi
+      [10.98520, 106.59100], // Công ty Samho
+      [10.98560, 106.59600], // Ngã 3 Bến Than
+      [10.98600, 106.60300]  // Hướng Cầu Bình Mỹ
+    ];
+
+    // TUYẾN 122 (Màu Xanh Lá): Chạy Tỉnh Lộ 15 Phía Nam (Bến xe An Sương ⇄ Hóc Môn ⇄ Tân Thạnh Đông ⇄ Bến xe Tân Quy)
+    let PATH_TINH_LO_15_NAM = [
+      [10.96500, 106.58300], // Hướng An Sương / Cầu Sáng
+      [10.97000, 106.58150],
+      [10.97500, 106.57960], // Ngã 3 Hồ Văn Tăng
+      [10.97700, 106.57880], // Garage Ô tô Thành Danh
+      [10.97880, 106.57820], // Áo Cưới Hoàng Vy Studio
+      [10.98080, 106.57750], // Bến xe Khách Tân Quy
+      [10.98240, 106.57690], // Chợ Tân Quy
+      [10.98368, 106.57645]  // Ngã tư Tân Quy (Điểm kết nối quay đầu)
+    ];
+
+    // TUYẾN 70 (Màu Vàng Cam): Chạy Tỉnh Lộ 15 Phía Bắc (Bến xe Tân Quy ⇄ Phú Hòa Đông ⇄ Bến Đình)
+    let PATH_TINH_LO_15_BAC = [
+      [10.98080, 106.57750], // Bến xe Khách Tân Quy
+      [10.98240, 106.57690], // Chợ Tân Quy
+      [10.98368, 106.57645], // Ngã tư Tân Quy
+      [10.98450, 106.57580], // HEAD Bình Minh 3 & CellphoneS
+      [10.98580, 106.57480], // Eco-shop 19k & Lê Thị Sọc
+      [10.98780, 106.57320], // Giáo xứ Tân Quy & MB Tân Quy
+      [10.98980, 106.57160], // Đậu Moon & Ẩm Thực 199
+      [10.99120, 106.57050], // Công viên Nguyễn Thị Hoài
+      [10.99350, 106.56920], // Hướng Chợ Phú Hòa Đông & Bến Đình
+      [10.99700, 106.56700]  // Hướng Bến Súc / Địa đạo Bến Đình
+    ];
+
+    // Vẽ 3 tuyến đường chuẩn lên bản đồ (có viền lót trắng chống chìm màu trên Vệ tinh)
+    let polylineUnderTL8 = L.polyline(PATH_TINH_LO_8, { color: '#ffffff', weight: 7, opacity: 0.9 }).addTo(map);
+    let polylineTL8 = L.polyline(PATH_TINH_LO_8, { color: '#0052cc', weight: 4.5, opacity: 1.0 }).addTo(map);
+
+    let polylineUnderTL15N = L.polyline(PATH_TINH_LO_15_NAM, { color: '#ffffff', weight: 7, opacity: 0.9 }).addTo(map);
+    let polylineTL15N = L.polyline(PATH_TINH_LO_15_NAM, { color: '#008744', weight: 4.5, opacity: 1.0 }).addTo(map);
+
+    let polylineUnderTL15B = L.polyline(PATH_TINH_LO_15_BAC, { color: '#ffffff', weight: 7, opacity: 0.9 }).addTo(map);
+    let polylineTL15B = L.polyline(PATH_TINH_LO_15_BAC, { color: '#d97706', weight: 4.5, opacity: 1.0 }).addTo(map);
+
+    /* =========================================================================
+       3. TỰ ĐỘNG KHỚP TIM ĐƯỜNG VỚI HỆ THỐNG ĐỊNH TUYẾN OSRM
+       ========================================================================= */
+    async function autoSnapAllRoutes() {
+      try {
+        // Khớp Tỉnh Lộ 8 (Tuyến 126)
+        const res8 = await fetch(`https://router.project-osrm.org/route/v1/driving/106.5500,10.9818;106.57645,10.98368;106.6030,10.9860?overview=full&geometries=geojson`);
+        const data8 = await res8.json();
+        if (data8.code === 'Ok' && data8.routes && data8.routes[0]) {
+          PATH_TINH_LO_8 = data8.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
+          polylineUnderTL8.setLatLngs(PATH_TINH_LO_8);
+          polylineTL8.setLatLngs(PATH_TINH_LO_8);
+          BUS_FLEET.forEach(b => {
+            if (b.routeCode === '126') b.path = PATH_TINH_LO_8;
+          });
+        }
+
+        // Khớp Tỉnh Lộ 15 Nam (Tuyến 122)
+        const res15N = await fetch(`https://router.project-osrm.org/route/v1/driving/106.5830,10.9650;106.5775,10.9808;106.57645,10.98368?overview=full&geometries=geojson`);
+        const data15N = await res15N.json();
+        if (data15N.code === 'Ok' && data15N.routes && data15N.routes[0]) {
+          PATH_TINH_LO_15_NAM = data15N.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
+          polylineUnderTL15N.setLatLngs(PATH_TINH_LO_15_NAM);
+          polylineTL15N.setLatLngs(PATH_TINH_LO_15_NAM);
+          BUS_FLEET.forEach(b => {
+            if (b.routeCode === '122') b.path = PATH_TINH_LO_15_NAM;
+          });
+        }
+
+        // Khớp Tỉnh Lộ 15 Bắc (Tuyến 70)
+        const res15B = await fetch(`https://router.project-osrm.org/route/v1/driving/106.5775,10.9808;106.57645,10.98368;106.5670,10.9970?overview=full&geometries=geojson`);
+        const data15B = await res15B.json();
+        if (data15B.code === 'Ok' && data15B.routes && data15B.routes[0]) {
+          PATH_TINH_LO_15_BAC = data15B.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
+          polylineUnderTL15B.setLatLngs(PATH_TINH_LO_15_BAC);
+          polylineTL15B.setLatLngs(PATH_TINH_LO_15_BAC);
+          BUS_FLEET.forEach(b => {
+            if (b.routeCode === '70') b.path = PATH_TINH_LO_15_BAC;
+          });
+        }
+
+        document.getElementById('route-status').innerHTML = '<i class="fa-solid fa-circle-dot"></i> ĐANG HOẠT ĐỘNG';
+      } catch (err) {
+        console.log("Đang chạy trên bộ tọa độ đường uốn chuẩn nội suy sẵn có.");
+      }
+    }
+    autoSnapAllRoutes();
+
+    /* =========================================================================
+       4. ĐIỂM DỪNG VÀ VỊ TRÍ KHÁCH ĐỨNG
+       ========================================================================= */
+    const userIcon = L.divIcon({
+      className: 'gm-user-dot',
+      html: '<div class="user-wave"></div><div class="user-inner-dot"></div>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    });
+    const userMarker = L.marker(USER_POS, { icon: userIcon }).addTo(map);
+    userMarker.bindPopup(`
+      <div style="padding: 10px; font-size: 13px;">
+        <b style="color:#0052cc;"><i class="fa-solid fa-street-view"></i> Vị trí của bạn</b><br>
+        Gần Ngã tư Tân Quy (vỉa hè Thế Giới Di Động)<br>
+        <span style="color:#5e6c84; font-size:11.5px;">Sẵn sàng bắt các tuyến xe buýt</span>
+      </div>
+    `);
+
+    // Danh sách trạm dừng thực tế nằm trên các trục đường chính
+    const busStations = [
+      { name: "Trạm Ngã 4 Tân Quy (Giao lộ TL8 x TL15)", pos: [10.98368, 106.57645], routes: ['126', '122', '70'] },
+      { name: "Trạm Satra Centre Mall Củ Chi (Tỉnh Lộ 8)", pos: [10.98475, 106.58650], routes: ['126'] },
+      { name: "Trạm Thế Giới Di Động & FPT Shop (Tỉnh Lộ 8)", pos: [10.98385, 106.57800], routes: ['126'] },
+      { name: "Trạm Bò Tơ Năm Vàng & HEAD Bình Minh 3 (Tỉnh Lộ 8)", pos: [10.98358, 106.57500], routes: ['126'] },
+      { name: "Trạm Bến Xe Khách Tân Quy (Tỉnh Lộ 15)", pos: [10.98080, 106.57750], routes: ['122', '70'] },
+      { name: "Trạm Chợ Tân Quy (Tỉnh Lộ 15)", pos: [10.98240, 106.57690], routes: ['122', '70'] },
+      { name: "Trạm Giáo Xứ Tân Quy (Tỉnh Lộ 15 Bắc)", pos: [10.98780, 106.57320], routes: ['70'] },
+      { name: "Trạm Đậu Moon & Ẩm Thực 199 (Tỉnh Lộ 15 Bắc)", pos: [10.98980, 106.57160], routes: ['70'] }
+    ];
+
+    const stationIcon = L.divIcon({
+      className: 'station-icon',
+      html: '<div style="width:12px; height:12px; background:#de350b; border:2.5px solid white; border-radius:50%; box-shadow:0 2px 6px rgba(0,0,0,0.5);"></div>',
+      iconSize: [12, 12],
+      iconAnchor: [6, 6]
+    });
+
+    busStations.forEach(s => {
+      s.marker = L.marker(s.pos, { icon: stationIcon }).addTo(map)
+        .bindPopup(`<b>🚏 ${s.name}</b><br><small style="color:#5e6c84;">Điểm dừng đón buýt</small>`);
+    });
+
+    /* =========================================================================
+       HÀM TÍNH KHOẢNG CÁCH & VẼ ĐƯỜNG CHỈ DẪN ĐI BỘ RA TRẠM
+       ========================================================================= */
+    function getDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function findNearestStationForRoute(routeCode) {
+      let nearest = null;
+      let minDistance = Infinity;
+      busStations.forEach(st => {
+        if (!st.routes || st.routes.includes(routeCode)) {
+          const dist = getDistanceMeters(USER_POS[0], USER_POS[1], st.pos[0], st.pos[1]);
+          if (dist < minDistance) {
+            minDistance = dist;
+            nearest = { station: st, distance: dist };
+          }
+        }
+      });
+      return nearest;
+    }
+
+    let walkingGlow = null;
+    let walkingLine = null;
+    let targetWalkingStation = null;
+
+    function drawWalkingGuide(station) {
+      clearWalkingGuide();
+      targetWalkingStation = station;
+
+      const path = [USER_POS, station.pos];
+
+      walkingGlow = L.polyline(path, {
+        color: '#93c5fd',
+        weight: 8,
+        opacity: 0.7
+      }).addTo(map);
+
+      walkingLine = L.polyline(path, {
+        color: '#0052cc',
+        weight: 4.5,
+        opacity: 1.0,
+        dashArray: '6, 8',
+        lineCap: 'round'
+      }).addTo(map);
+
+      const panel = document.getElementById('walk-guide-panel');
+      if (panel) {
+        const dist = getDistanceMeters(USER_POS[0], USER_POS[1], station.pos[0], station.pos[1]);
+        document.getElementById('panel-station-name').innerText = station.name;
+        document.getElementById('panel-station-dist').innerText = `~${dist} mét`;
+        panel.style.display = 'flex';
+      }
+    }
+
+    function clearWalkingGuide() {
+      if (walkingLine) map.removeLayer(walkingLine);
+      if (walkingGlow) map.removeLayer(walkingGlow);
+      walkingLine = null;
+      walkingGlow = null;
+      targetWalkingStation = null;
+      const panel = document.getElementById('walk-guide-panel');
+      if (panel) panel.style.display = 'none';
+    }
+
+    /* =========================================================================
+       5. ĐỘI XE BUÝT THỜI GIAN THỰC (5 XE TRÊN 3 TUYẾN)
+       ========================================================================= */
+    const BUS_FLEET = [
+      {
+        id: 'BUS-126-A',
+        routeCode: '126',
+        routeName: 'Bến xe Củ Chi ⇄ Tân Quy ⇄ Bình Mỹ',
+        plate: '50E-028.91',
+        driver: 'Nguyễn Văn Khang',
+        phone: '0908.123.xxx',
+        color: '#0052cc', // Xanh dương
+        path: PATH_TINH_LO_8,
+        segIndex: 4,
+        progress: 0.3,
+        direction: 1,
+        speedKmh: 35,
+        battery: 92,
+        nextStop: 'Ngã tư Tân Quy'
+      },
+      {
+        id: 'BUS-126-B',
+        routeCode: '126',
+        routeName: 'Bình Mỹ ⇄ Ngã tư Tân Quy ⇄ Củ Chi',
+        plate: '50E-033.45',
+        driver: 'Phạm Minh Toàn',
+        phone: '0912.456.xxx',
+        color: '#0052cc',
+        path: PATH_TINH_LO_8,
+        segIndex: 8,
+        progress: 0.6,
+        direction: -1,
+        speedKmh: 34,
+        battery: 79,
+        nextStop: 'Centre Mall Củ Chi'
+      },
+      {
+        id: 'BUS-122-A',
+        routeCode: '122',
+        routeName: 'Bến xe An Sương ⇄ Bến xe Tân Quy',
+        plate: '50E-099.12',
+        driver: 'Lê Hoàng Long',
+        phone: '0983.789.xxx',
+        color: '#008744', // Xanh lá
+        path: PATH_TINH_LO_15_NAM,
+        segIndex: 3,
+        progress: 0.4,
+        direction: 1,
+        speedKmh: 33,
+        battery: 88,
+        nextStop: 'Chợ Tân Quy'
+      },
+      {
+        id: 'BUS-122-B',
+        routeCode: '122',
+        routeName: 'Bến xe Tân Quy ⇄ Bến xe An Sương',
+        plate: '50E-088.76',
+        driver: 'Trần Đình Trọng',
+        phone: '0937.112.xxx',
+        color: '#008744',
+        path: PATH_TINH_LO_15_NAM,
+        segIndex: 6,
+        progress: 0.5,
+        direction: -1,
+        speedKmh: 35,
+        battery: 84,
+        nextStop: 'Hồ Văn Tăng'
+      },
+      {
+        id: 'BUS-70',
+        routeCode: '70',
+        routeName: 'Bến xe Tân Quy ⇄ Phú Hòa Đông ⇄ Bến Đình',
+        plate: '50E-070.33',
+        driver: 'Võ Thanh Tùng',
+        phone: '0903.654.xxx',
+        color: '#d97706', // Vàng Cam Hổ Phách
+        path: PATH_TINH_LO_15_BAC,
+        segIndex: 2,
+        progress: 0.4,
+        direction: 1,
+        speedKmh: 32,
+        battery: 95,
+        nextStop: 'Giáo Xứ Tân Quy'
+      }
+    ];
+
+    function calculateRoadBearing(lat1, lng1, lat2, lng2) {
+      const rad = Math.PI / 180;
+      const dy = (lat2 - lat1) * 111000;
+      const dx = (lng2 - lng1) * 111000 * Math.cos(lat1 * rad);
+      let angleDeg = Math.atan2(dx, dy) * (180 / Math.PI);
+      if (angleDeg < 0) angleDeg += 360;
+      return angleDeg;
+    }
+
+    function createPermanentBusIcon(bus) {
+      return L.divIcon({
+        className: 'super-bus-marker',
+        html: `
+          <div class="super-bus-container">
+            <div class="bus-floating-badge" style="border-color: ${bus.color};">
+              <i class="fa-solid fa-bolt" style="color: #ffab00;"></i> ${bus.routeCode}
+            </div>
+            <div class="bus-vehicle-rotate" id="bus-rotate-${bus.id}">
+              <svg width="26" height="48" viewBox="0 0 26 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1.5" y="1.5" width="23" height="45" rx="6.5" fill="${bus.color}" stroke="#ffffff" stroke-width="2.5"/>
+                <rect x="4" y="6" width="18" height="8" rx="2" fill="#0f172a" stroke="#ffffff" stroke-width="0.8"/>
+                <rect x="5.5" y="18" width="15" height="14" rx="2.5" fill="#ffffff" fill-opacity="0.3"/>
+                <path d="M13 20L10.5 25.5H13.5L12.5 30L16 24.5H13L13 20Z" fill="#ffffff"/>
+                <circle cx="5" cy="4" r="2" fill="#ffeb3b" stroke="#000" stroke-width="0.5"/>
+                <circle cx="21" cy="4" r="2" fill="#ffeb3b" stroke="#000" stroke-width="0.5"/>
+                <rect x="0" y="7" width="2" height="4.5" rx="1" fill="#000000"/>
+                <rect x="24" y="7" width="2" height="4.5" rx="1" fill="#000000"/>
+                <rect x="4.5" y="44" width="4" height="2" fill="#ff1744"/>
+                <rect x="17.5" y="44" width="4" height="2" fill="#ff1744"/>
+              </svg>
+            </div>
+          </div>
+        `,
+        iconSize: [60, 60],
+        iconAnchor: [30, 30]
+      });
+    }
+
+    BUS_FLEET.forEach(bus => {
+      const p1 = bus.path[bus.segIndex];
+      bus.marker = L.marker([p1[0], p1[1]], {
+        icon: createPermanentBusIcon(bus)
+      }).addTo(map);
+
+      bindBusPopup(bus);
+
+      bus.marker.on('click', () => {
+        focusBus(bus.id);
+      });
+    });
+
+    function bindBusPopup(bus) {
+      const content = `
+        <div class="gm-popup">
+          <div class="gm-popup-header" style="background: ${bus.color};">
+            <div>
+              <div class="gm-popup-title">Tuyến ${bus.routeCode}</div>
+              <div class="gm-popup-plate">Biển số: <strong>${bus.plate}</strong></div>
+            </div>
+            <span style="background:rgba(255,255,255,0.25); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:800;">
+              ⚡ Buýt điện
+            </span>
+          </div>
+          <div class="gm-popup-body">
+            <div><strong>Lộ trình:</strong> ${bus.routeName}</div>
+            <div><strong>Bác tài:</strong> ${bus.driver} (${bus.phone})</div>
+            <div><strong>Trạm kế tiếp:</strong> <span style="color:#008744; font-weight:700;">${bus.nextStop}</span></div>
+            <div><strong>Tốc độ:</strong> ${bus.speedKmh} km/h | 🔋 <strong>${bus.battery}% Pin</strong></div>
+            <button class="btn-hail-popup" onclick="hailBus('${bus.id}')">
+              <i class="fa-solid fa-hand"></i> ĐẶT XE ĐÓN TÔI TẠI TRẠM
+            </button>
+          </div>
+        </div>
+      `;
+      bus.marker.bindPopup(content);
+    }
+
+    /* =========================================================================
+       6. ĐỘNG CƠ DI CHUYỂN MÔ PHỎNG VẬT LÝ TRỰC TIẾP TRÊN MẶT ĐƯỜNG
+       ========================================================================= */
+    let lastTime = performance.now();
+
+    function liveVehicleEngine(now) {
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      BUS_FLEET.forEach(bus => {
+        const path = bus.path;
+        if (!path || path.length < 2) return;
+        const maxSeg = path.length - 1;
+
+        if (bus.segIndex >= maxSeg) bus.segIndex = maxSeg - 1;
+        if (bus.segIndex < 0) bus.segIndex = 0;
+
+        const pA = path[bus.segIndex];
+        const pB = path[bus.segIndex + 1];
+
+        const dLat = (pB[0] - pA[0]) * 111000;
+        const dLng = (pB[1] - pA[1]) * 109000;
+        const segLengthMeters = Math.max(Math.sqrt(dLat * dLat + dLng * dLng), 2);
+
+        const speedMs = (bus.speedKmh * 1000 / 3600) * 1.5;
+        const progressDelta = (speedMs * dt) / segLengthMeters;
+
+        if (bus.direction === 1) {
+          bus.progress += progressDelta;
+          if (bus.progress >= 1.0) {
+            bus.progress = 0;
+            bus.segIndex++;
+            if (bus.segIndex >= maxSeg) {
+              bus.segIndex = maxSeg - 1;
+              bus.progress = 1.0;
+              bus.direction = -1; // Quay đầu chạy ngược lại trên cùng tuyến đường
+            }
+          }
+        } else {
+          bus.progress -= progressDelta;
+          if (bus.progress <= 0) {
+            bus.progress = 1.0;
+            bus.segIndex--;
+            if (bus.segIndex < 0) {
+              bus.segIndex = 0;
+              bus.progress = 0;
+              bus.direction = 1; // Quay đầu chạy tiếp
+            }
+          }
+        }
+
+        const curP1 = path[bus.segIndex];
+        const curP2 = path[bus.segIndex + 1];
+        const curLat = curP1[0] + (curP2[0] - curP1[0]) * bus.progress;
+        const curLng = curP1[1] + (curP2[1] - curP1[1]) * bus.progress;
+
+        let targetAngle = (bus.direction === 1)
+          ? calculateRoadBearing(curP1[0], curP1[1], curP2[0], curP2[1])
+          : calculateRoadBearing(curP2[0], curP2[1], curP1[0], curP1[1]);
+
+        bus.marker.setLatLng([curLat, curLng]);
+
+        if (!bus.rotateEl) {
+          bus.rotateEl = document.getElementById(`bus-rotate-${bus.id}`);
+        }
+        if (bus.rotateEl) {
+          bus.rotateEl.style.transform = `rotate(${targetAngle}deg)`;
+        }
+      });
+
+      requestAnimationFrame(liveVehicleEngine);
+    }
+    requestAnimationFrame(liveVehicleEngine);
+
+    /* =========================================================================
+       7. GIAO DIỆN & TƯƠNG TÁC NGƯỜI DÙNG
+       ========================================================================= */
+    function renderBusDrawer(filter = 'ALL') {
+      const container = document.getElementById('busList');
+      container.innerHTML = '';
+
+      const filtered = (filter === 'ALL') ? BUS_FLEET : BUS_FLEET.filter(b => b.routeCode === filter);
+
+      filtered.forEach(bus => {
+        const card = document.createElement('div');
+        card.className = 'bus-card';
+        card.onclick = () => focusBus(bus.id);
+        card.innerHTML = `
+          <div class="bus-card-top">
+            <span class="bus-badge" style="background: ${bus.color};">
+              <i class="fa-solid fa-bolt"></i> Tuyến ${bus.routeCode}
+            </span>
+            <span class="bus-plate">${bus.plate}</span>
+          </div>
+          <div class="bus-desc">${bus.routeName}</div>
+          <div class="bus-footer-row">
+            <span><i class="fa-solid fa-gauge"></i> ${bus.speedKmh} km/h</span>
+            <span><i class="fa-solid fa-battery-three-quarters" style="color:#008744;"></i> ${bus.battery}% Pin</span>
+            <button class="btn-hail-card" onclick="event.stopPropagation(); hailBus('${bus.id}')">
+              <i class="fa-solid fa-hand"></i> Gọi xe
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function filterRoute(code, btn) {
+      document.querySelectorAll('.tab-chip').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      renderBusDrawer(code);
+    }
+
+    function focusBus(id) {
+      const bus = BUS_FLEET.find(b => b.id === id);
+      if (bus) {
+        map.flyTo(bus.marker.getLatLng(), 17, { duration: 0.8 });
+        bus.marker.openPopup();
+      }
+    }
+
+    function toggleDrawer() {
+      const drawer = document.getElementById('gmDrawer');
+      const icon = document.getElementById('drawerIcon');
+      drawer.classList.toggle('collapsed');
+      if (drawer.classList.contains('collapsed')) {
+        icon.className = 'fa-solid fa-chevron-right';
+      } else {
+        icon.className = 'fa-solid fa-chevron-left';
+      }
+    }
+
+    /* =========================================================================
+       8. GỌI XE & THÔNG BÁO HÃY ĐẾN TRẠM GẦN NHẤT
+       ========================================================================= */
+    function hailBus(busId) {
+      const bus = BUS_FLEET.find(b => b.id === busId);
+      if (!bus) return;
+
+      // Tìm trạm gần nhất trên tuyến xe này
+      const nearest = findNearestStationForRoute(bus.routeCode);
+      if (!nearest) return;
+
+      const station = nearest.station;
+      const dist = nearest.distance;
+      const walkTime = Math.max(1, Math.round(dist / 70));
+
+      // Điền thông tin trạm vào modal
+      document.getElementById('modal-station-name').innerText = station.name;
+      document.getElementById('modal-station-dist').innerText = `~${dist} mét`;
+      document.getElementById('modal-station-time').innerText = `khoảng ${walkTime} phút đi bộ`;
+
+      const detailBox = document.getElementById('modalBusDetails');
+      detailBox.innerHTML = `
+        <div><strong>Tuyến buýt điện:</strong> Tuyến ${bus.routeCode} (${bus.routeName})</div>
+        <div><strong>Biển số xe:</strong> <span style="color:#0052cc; font-weight:800;">${bus.plate}</span></div>
+        <div><strong>Bác tài:</strong> ${bus.driver} - SĐT: ${bus.phone}</div>
+        <div><strong>Thời gian tiếp cận trạm:</strong> Khoảng 1 - 2 phút (Xe đang tiến về khu vực trạm)</div>
+      `;
+
+      // Vẽ đường chỉ dẫn đi bộ trên bản đồ tới trạm
+      drawWalkingGuide(station);
+
+      document.getElementById('alert-modal-backdrop').style.display = 'flex';
+      playChimeNotification();
+    }
+
+    function closeModal() {
+      document.getElementById('alert-modal-backdrop').style.display = 'none';
+    }
+
+    function confirmReady() {
+      closeModal();
+      if (targetWalkingStation) {
+        const bounds = L.latLngBounds([USER_POS, targetWalkingStation.pos]);
+        map.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+        if (targetWalkingStation.marker) targetWalkingStation.marker.openPopup();
+      }
+      showToast("Vui lòng đi theo đường chỉ dẫn trên bản đồ ra trạm đón xe!");
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('gm-toast');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.style.display = 'flex';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 3200);
+    }
+
+    function playChimeNotification() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.18, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.45);
+        }
+      } catch (e) {}
+    }
+
+    renderBusDrawer();
+  </script>
+</body>
+</html>
