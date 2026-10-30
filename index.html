@@ -42,9 +42,15 @@
     }
 
     #app-container {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
     }
 
     #map {
@@ -185,7 +191,24 @@
     }
 
     .gm-drawer.collapsed {
-      transform: translateX(-450px);
+      transform: none !important;
+      max-height: none !important;
+      height: auto !important;
+    }
+
+    .gm-drawer.collapsed .bus-list {
+      display: none !important;
+    }
+
+    .gm-drawer.collapsed .drawer-header {
+      border-bottom: none;
+      background: #ffffff;
+    }
+
+    .gm-drawer.collapsed .drawer-collapse-pill {
+      background: #0052cc;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 82, 204, 0.35);
     }
 
     .drawer-header {
@@ -816,40 +839,58 @@
       max-width: 92vw;
     }
 
+    .drawer-toggle-btn {
+      display: none;
+    }
+
     /* GIAO DIỆN BOTTOM-SHEET GỌN GÀNG TRÊN ĐIỆN THOẠI */
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       .gm-searchbox {
         top: 6px;
         left: 6px;
-        width: calc(100vw - 12px);
+        width: calc(100% - 12px);
       }
       .gm-drawer {
+        position: fixed;
         top: auto;
         bottom: 0;
         left: 0;
-        width: 100vw;
-        max-width: 100vw;
-        max-height: 36vh;
+        right: 0;
+        width: 100%;
+        max-width: 100%;
+        max-height: 36%;
+        max-height: 36dvh;
         border-radius: 14px 14px 0 0;
         box-shadow: 0 -4px 16px rgba(9, 30, 66, 0.28);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        z-index: 1002;
       }
       .gm-drawer.collapsed {
-        transform: translateY(calc(100% - 40px));
+        transform: none !important;
+        max-height: none !important;
+        height: auto !important;
       }
-      .drawer-toggle-btn {
-        display: none;
+      .gm-drawer .drawer-header {
+        min-height: 46px;
+        padding: 10px 14px;
       }
       .gm-layer-switcher {
         top: 118px;
         right: 6px;
       }
       .gm-my-location-btn {
-        bottom: calc(36vh + 10px);
-        right: 8px;
+        position: fixed;
+        bottom: calc(36% + 12px);
+        bottom: calc(36dvh + 12px);
+        right: 10px;
+        transition: bottom 0.25s ease;
+      }
+      .gm-drawer.collapsed ~ .gm-my-location-btn {
+        bottom: 58px;
       }
       #walk-guide-panel {
         top: 158px;
-        width: calc(100vw - 12px);
+        width: calc(100% - 12px);
       }
     }
   </style>
@@ -2283,7 +2324,7 @@
     function focusBus(id) {
       const bus = BUS_FLEET.find(b => b.id === id);
       if (bus) {
-        if (window.innerWidth <= 600) {
+        if (window.innerWidth <= 768) {
           setDrawerCollapsed(true);
         }
         bindBusPopup(bus);
@@ -2447,7 +2488,7 @@
 
     function confirmReady() {
       closeModal();
-      if (window.innerWidth <= 600) {
+      if (window.innerWidth <= 768) {
         setDrawerCollapsed(true);
       }
       const bookedBus = BUS_FLEET.find(b => b.id === activeBookedBusId);
@@ -2515,4 +2556,4 @@
     renderBusDrawer();
   </script>
 </body>
-</html>
+  </html>
